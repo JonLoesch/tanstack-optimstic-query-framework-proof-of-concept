@@ -3,11 +3,11 @@
 This application uses [TRPC](https://trpc.io/) with an adapter for [TanStack React Query](https://tanstack.com/query/latest/docs/framework/react/overview); it's based on the [minimal react TRPC example, here](https://github.com/trpc/trpc/tree/main/examples/minimal-react).  The idea is to showcase an idea I have (not yet fully implemented or cleaned up).  The idea is:
 - There is [a sample TRPC schema](server/index.ts), with an artifical delay built in (3 to 5 seconds added to each TRPC request)
 - There is [a single file](client/src/optimistic-updates.ts) where we defined some optimistic update logic.  In particular:
-  - we assume that `thread.create` will succeed and optimistically add a temporary new thread to the client-side cache while we wait
-  - we assume that `thread.delete` will succeed and optimistically remove thread from the client-side cache while we wait
-  - we assume that `post.create` will succeed and optimistically add a temporary new thread to the client-side cache while we wait
-  - we assume that `post.delete` will succeed and optimistically remove thread from the client-side cache while we wait
-- All this is done in a typesafe way, using a helper function `createTRPCLinkProxy`.  The [source code to provide that function](client/src/trpc-link.ts) is super hacky and just a proof-of-concept right now so don't read too much into it.  It needs to be seriously cleaned up if this concept goes forward.
+  - we assume that `thread.create` will succeed and optimistically adjust `thead.all`
+  - we assume that `thread.delete` will succeed and optimistically adjust `thead.all`
+  - we assume that `post.create` will succeed and optimistically adjust `post.allInThread`
+  - we assume that `post.delete` will succeed and optimistically adjust `post.allInThread`
+- All this is done in a typesafe way, using a helper function `createTRPCLinkProxy`.  The [source code to provide that function](client/src/trpc-link.ts) is super hacky and just a proof-of-concept right now so don't read too much into its implementation.  It needs to be seriously cleaned up if this concept goes forward.
 - We implement the optimistic oupdate logic across the whole app, separated from the actual UI components.  it is injected into the [links](https://trpc.io/docs/client/links) of the TRPC client at instantiation, so that any time we call the affected procedures, we will benefit from the optimistic caching logic implicitly.
 
 
