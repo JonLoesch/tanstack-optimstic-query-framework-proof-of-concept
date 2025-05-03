@@ -1,5 +1,8 @@
 # A demo of an idea for implementing optimistic updates using TRPC links
 
+You can see the demo live here: [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/JonLoesch/trpc-link-demo)
+
+
 This application uses [TRPC](https://trpc.io/) with an adapter for [TanStack React Query](https://tanstack.com/query/latest/docs/framework/react/overview); it's based on the [minimal react TRPC example, here](https://github.com/trpc/trpc/tree/main/examples/minimal-react).  The idea is to showcase an idea I have (not yet fully implemented or cleaned up).  The idea is:
 - There is [a sample TRPC schema](server/index.ts), with an artifical delay built in (3 to 5 seconds added to each TRPC request)
 - There is [a single file](client/src/optimistic-updates.ts) where we defined some optimistic update logic.  In particular:

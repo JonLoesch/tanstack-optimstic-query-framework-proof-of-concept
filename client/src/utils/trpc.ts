@@ -16,7 +16,7 @@ const trpcClient = createTRPCClient<AppRouter>({
   links: [
     ...optimisticUpdates(queryClient),
     loggerLink(),
-    httpBatchLink({ url: "http://localhost:2022" }),
+    httpBatchLink({ url: "http://localhost:3033" }),
   ],
 });
 
