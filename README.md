@@ -1,6 +1,6 @@
 # A demo of an idea for implementing optimistic updates using TRPC links
 
-You can see the demo live here: [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/JonLoesch/trpc-link-demo)
+You can see the demo live here: [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/JonLoesch/trpc-link-demo?file=client%2Fsrc%2Foptimistic-updates.ts)
 
 
 This application uses [TRPC](https://trpc.io/) with an adapter for [TanStack React Query](https://tanstack.com/query/latest/docs/framework/react/overview); it's based on the [minimal react TRPC example, here](https://github.com/trpc/trpc/tree/main/examples/minimal-react).  The idea is to showcase an idea I have (not yet fully implemented or cleaned up).  The idea is:
