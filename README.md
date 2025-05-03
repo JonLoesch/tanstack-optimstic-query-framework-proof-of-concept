@@ -1,3 +1,19 @@
-# trpc-link-demo
+# A minimal React tRPC example
 
-[Edit in StackBlitz next generation editor ⚡️](https://stackblitz.com/~/github.com/JonLoesch/trpc-link-demo)
+Requires node 18 (for global fetch).
+
+## Playing around
+
+```bash
+npm i
+npm run dev
+```
+
+Try editing the ts files to see the type checking in action :)
+
+## Building
+
+```bash
+npm run build
+npm run start
+```
