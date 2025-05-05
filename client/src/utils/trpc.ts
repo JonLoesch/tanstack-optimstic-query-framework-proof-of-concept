@@ -2,7 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createTRPCClient, httpBatchLink, loggerLink } from "@trpc/client";
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import type { AppRouter } from "../../../server";
-import { optimisticUpdates } from "../optimistic-updates";
+import { optimisticUpdatesViaLink } from "../optimistic-updates";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,7 +14,7 @@ export const queryClient = new QueryClient({
 
 const trpcClient = createTRPCClient<AppRouter>({
   links: [
-    ...optimisticUpdates(queryClient),
+    ...optimisticUpdatesViaLink(queryClient),
     loggerLink(),
     httpBatchLink({ url: "http://localhost:3033" }),
   ],

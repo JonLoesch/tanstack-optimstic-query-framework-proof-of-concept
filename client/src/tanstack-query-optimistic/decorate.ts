@@ -15,50 +15,38 @@ import {
   QueryFilters,
   QueryKey,
 } from "@tanstack/react-query";
+import {
+  _MutationObserverOptions,
+  _MutationObserverResult,
+  _Query,
+  AnyDef,
+} from "./def";
 
-export type TransformQuerySpec<TTargetInput, TTargetOutput> = {
+export type TransformQuerySpec<D extends AnyDef> = {
   filter: QueryFilters;
   transform: (
-    valuesFromServer: TTargetOutput,
-    query: Query<unknown, DefaultError, TTargetOutput>
-  ) => TTargetOutput;
+    valuesFromServer: D["target"]["output"],
+    query: _Query<D>
+  ) => D["target"]["output"];
 };
-type WatchMutationOptions<TSourceInput, TSourceError, TSourceOutput, TSourceContext> = MutationObserverOptions<
-TSourceOutput,
-TSourceError,
-TSourceInput,
-TSourceContext
-> & {
-onEvent?: (
-  event: MutationObserverResult<
-    TSourceOutput,
-    TSourceError,
-    TSourceInput,
-    TSourceContext
-  >
-) => void;
+type WatchMutationOptions<D extends AnyDef> = _MutationObserverOptions<D> & {
+  onEvent?: (event: _MutationObserverResult<D>) => void;
 };
 
+// export function options<D extends Def>(
+//   o: WatchMutationOptions<D>
+// ): WatchMutationOptions<D> {
+//   return o;
+// }
 
-export function options<
-  TData,
-  TError,
-  TVariables,
-  TContext
->(
-  o: WatchMutationOptions<TData, TError, TVariables, TContext>
-): WatchMutationOptions<TData, TError, TVariables, TContext> {
-  return o;
-}
-
-export type WatchMutationSpec<TSourceInput, TSourceOutput> = {
+export type WatchMutationSpec<D extends AnyDef> = {
   filter: MutationFilters;
-  watch: () => WatchMutationOptions<TSourceInput, any, TSourceOutput, any>
+  watch: () => WatchMutationOptions<D>;
 };
 export type Spec = {
-  transformQuery: TransformQuerySpec<any, any>[];
-  watchMutation: WatchMutationSpec<any, any>[];
-};
+  transformQuery: TransformQuerySpec<AnyDef>[];
+  watchMutation: WatchMutationSpec<AnyDef>[];
+};6
 
 export function decorateClient(queryClient: QueryClient, spec: Spec) {
   return new QueryClient({
@@ -81,28 +69,23 @@ function decorate<T extends object>(init: T, extension: Partial<T>): T {
 
 function decorateQueryCache(
   cache: QueryCache,
-  specs: TransformQuerySpec<any, any>[]
+  specs: TransformQuerySpec<AnyDef>[]
 ): QueryCache {
   return decorate(cache, {
     build: (client, options, state) =>
       decorateQuery(cache.build(client, options, state), specs),
   });
 }
-function decorateQuery<TQueryFnData, TError, TData, TQueryKey extends QueryKey>(
-  query: Query<TQueryFnData, TError, TData, TQueryKey>,
-  specs: TransformQuerySpec<any, any>[]
-): Query<TQueryFnData, TError, TData, TQueryKey> {
+function decorateQuery<D extends AnyDef>(
+  query: _Query<D>,
+  specs: TransformQuerySpec<D>[]
+): _Query<D> {
   return decorate(query, {
     fetch(options, fetchOptions) {
       return specs.reduce(
         (promise, s) =>
           matchQuery(s.filter, query)
-            ? promise.then((x) =>
-                (s as TransformQuerySpec<any, TData>).transform(
-                  x,
-                  query as unknown as Query<unknown, DefaultError, TData>
-                )
-              )
+            ? promise.then((x) => s.transform(x, query))
             : promise,
         query.fetch(options, fetchOptions)
       );
@@ -111,7 +94,7 @@ function decorateQuery<TQueryFnData, TError, TData, TQueryKey extends QueryKey>(
 }
 function decorateMutationCache(
   cache: MutationCache,
-  specs: WatchMutationSpec<any, any>[]
+  specs: WatchMutationSpec<AnyDef>[]
 ): MutationCache {
   return decorate<MutationCache>(cache, {
     build: (client, options, state) => {
@@ -126,25 +109,3 @@ function decorateMutationCache(
     },
   });
 }
-
-const dec = decorateClient(new QueryClient(), {
-  transformQuery: [
-    {
-      filter: {
-        queryKey: ["asdf"],
-      },
-      transform(valuesFromServer, query) {
-        return `${valuesFromServer}`;
-      },
-    },
-  ],
-  watchMutation: [],
-});
-
-(async () => {
-  const result = await dec.fetchQuery<number, DefaultError, string>({
-    queryKey: ["asdf"],
-    queryFn: () => Promise.resolve(5),
-  });
-  console.log({ result });
-})();

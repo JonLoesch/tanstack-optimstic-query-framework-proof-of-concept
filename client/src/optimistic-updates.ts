@@ -2,8 +2,14 @@ import { QueryClient } from "@tanstack/react-query";
 import { TRPCLink } from "@trpc/client";
 import { AppRouter } from "../../server";
 import { createTRPCLinkProxy } from "./trpc-link";
+import {
+  optimisticTRPCClient,
+  stopInjection,
+} from "./tanstack-query-optimistic";
+import { trpc } from "./utils/trpc";
+import { SpecificDef } from "./tanstack-query-optimistic/def";
 
-export function optimisticUpdates(
+export function optimisticUpdatesViaLink(
   queryClient: QueryClient
 ): TRPCLink<AppRouter>[] {
   const trpcLink = createTRPCLinkProxy<AppRouter>(queryClient);
@@ -88,4 +94,92 @@ export function optimisticUpdates(
       ]
     ),
   ];
+}
+
+export function optimisticUpdatesViaTanstackDecoration(
+  baseClient?: QueryClient
+) {
+  return optimisticTRPCClient((builder) => {
+    builder.optimisticArrayInsert(
+      {
+        from: trpc.threads.create,
+        to: trpc.threads.all,
+      },
+      {
+        queryParameters: () => undefined,
+        fakeValue: (input) => ({ ...input, id: -1 }),
+        matchValue(input, fromServer, mutationResult) {
+          if (mutationResult?.id === fromServer.id) return "exact";
+          if (input.title === fromServer.title) return "fuzzy";
+        },
+      }
+    );
+
+    // builder.untyped.optimisticArrayInsert({
+    //   from: { mutationKey: [["threads", "create"]] },
+    //   to: { queryKey: [["threads", "all"]] },
+    //   fakeValue: (input) => ({ ...input, id: -1 }),
+    //   matchValue(input, fromServer, mutationResult) {
+    //     if (mutationResult?.id === fromServer.id) return "exact";
+    //     if (input.title === fromServer.title) return "fuzzy";
+    //   },
+    // });
+
+    builder.optimisticArrayRemove(
+      {
+        from: trpc.threads.delete,
+        to: trpc.threads.all,
+      },
+      {
+        queryParameters: () => undefined,
+        matchValue(input, fromServer) {
+          return input.id == fromServer.id;
+        },
+      }
+    );
+
+    builder.optimisticArrayInsert(
+      {
+        from: trpc.posts.create,
+        to: trpc.posts.allInThread,
+      },
+      {
+        queryParameters(mutationParameters) {
+          return { threadId: mutationParameters.threadId };
+        },
+        fakeValue: (input) => ({ ...input, id: -1 }),
+        matchValue(input, fromServer, mutationResult) {
+          if (mutationResult?.id === fromServer.id) return "exact";
+          if (input.content === fromServer.content) return "fuzzy";
+        },
+      }
+    );
+
+    builder.optimisticArrayRemove(
+      {
+        from: trpc.posts.delete,
+        to: trpc.posts.allInThread,
+      },
+      {
+        queryParameters(mutationParameters) {
+          return { threadId: mutationParameters.threadId };
+        },
+        matchValue: (input, fromServer) => input.id === fromServer.id,
+      }
+    );
+
+    // builder.untyped.optimisticArrayRemove({
+    //   from: { mutationKey: [["posts", "delete"]] },
+    //   to: {
+    //     static: { queryKey: [["posts", "allInThread"]] },
+    //     dynamic: (mutationState) => ({
+    //       queryKey: [
+    //         ["posts", "allInThread"],
+    //         { threadId: mutationState.variables.threadId },
+    //       ],
+    //     }),
+    //   },
+    //   matchValue: (input, fromServer) => input.id === fromServer.id,
+    // });
+  }, baseClient);
 }

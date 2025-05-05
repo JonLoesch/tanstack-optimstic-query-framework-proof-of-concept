@@ -1,72 +1,113 @@
 import { MutationKey, QueryClient, QueryKey } from "@tanstack/react-query";
 import { trpc } from "../utils/trpc";
-import { makeSpec, OptimisticConfig, stopInjection } from "./makeSpec";
-import { decorateClient } from "./decorate";
+import {
+  ActiveMutationState,
+  UntypedConfigs,
+  _buildUntypedOptimisticSpec,
+  stopInjection,
+  type Selectors as UntypedSelectors,
+} from "./untyped";
+import { runSpecBuilder } from "./builder";
+import { AdjustTargetOutput, AnyDef } from "./def";
 
-
-
-type ReturnVoid<T extends (...args: any) => any> = (
-  ...params: Parameters<T>
-) => void;
-type BuilderArgsOptimisticData<TSourceInput, TSourceOutput, TTargetInput, TTargetOutput> = {
-    from: {
-        '~types': {
-            'input': TSourceInput;
-            'output': TSourceOutput;
-        };
-        'mutationKey': () => MutationKey;
+type Selectors<D extends AnyDef> = {
+  from: {
+    "~types": {
+      input: D["source"]["input"];
+      output: D["source"]["output"];
     };
-    to: {
-        '~types': {
-            'input': TTargetInput;
-            'output': TTargetOutput;
-        };
-        'queryKey': () => QueryKey;
+    mutationKey: () => MutationKey;
+  };
+  to: {
+    "~types": {
+      input: D["target"]["input"];
+      output: D["target"]["output"];
     };
-    queryParameters: (mutationParameters: TSourceInput) => TTargetInput;
-} & Pick<OptimisticConfig<TSourceInput, TSourceOutput, TTargetInput, TTargetOutput>, 'inject'>;
+    queryKey: (input: D["target"]["input"]) => D["target"]["queryKey"];
+  };
+};
 
-interface Builder {
-  optimisticData<
-  TSourceInput,
-  TSourceOutput,
-  TTargetInput,
-  TTargetOutput
->(config: BuilderArgsOptimisticData<TSourceInput, TSourceOutput, TTargetInput, TTargetOutput>): void
-}
+type inferDef<S extends Selectors<any>> = {
+  source: {
+    input: S["from"]["~types"]["input"];
+    output: S["from"]["~types"]["output"];
+    error: any;
+    context: any;
+  };
+  target: {
+    input: S["to"]["~types"]["input"];
+    output: S["to"]["~types"]["output"];
+    error: any;
+    outputPreTransform: any;
+    queryKey: ReturnType<S["to"]["queryKey"]>;
+  };
+};
 
-export function createOptimisticClient(factory: (builder: Builder) => void, baseClient?: QueryClient): QueryClient {
-    const base = baseClient ?? new QueryClient();
-      const spec = makeSpec(builder => {
-        factory({
-            optimisticData<TSourceInput, TSourceOutput, TTargetInput, TTargetOutput>(config: BuilderArgsOptimisticData<TSourceInput, TSourceOutput, TTargetInput, TTargetOutput>) {
-                builder.optimisticData<TSourceInput, TSourceOutput, TTargetInput, TTargetOutput>({
-                    inject: config.inject,
-                    from: config.from.mutationKey(),
-                    to: {
-                        prefix: (config.from as unknown as {'pathKey': () => QueryKey}).pathKey(),
-                    }
-                }, base);
-            },
+type TRPCConfigs<D extends AnyDef> = {
+  [K in keyof UntypedConfigs<D>]: Omit<
+    UntypedConfigs<D>[K],
+    keyof UntypedSelectors<D>
+  > & {
+    queryParameters: (
+      mutationParameters: D["source"]["input"]
+    ) => D["target"]["input"];
+  };
+};
+
+export const optimisticTRPCClient = runSpecBuilder(_buildTRPCOptimisticClient);
+export function _buildTRPCOptimisticClient(queryClient: QueryClient) {
+  const untyped = _buildUntypedOptimisticSpec(queryClient);
+  return {
+    spec: untyped.spec,
+    builder: {
+      untyped: untyped.builder,
+
+      optimisticArrayInsert<
+        S extends Selectors<AnyDef>,
+        D extends AdjustTargetOutput<
+          inferDef<S>,
+          inferDef<S>["target"]["output"][0]
+        >
+      >(
+        s: S,
+        { queryParameters, ...config }: TRPCConfigs<D>["optimisticArrayInsert"]
+      ) {
+        this.untyped.optimisticArrayInsert({
+          ...untypedSelectors({ ...s, queryParameters }),
+          ...config,
         });
-      });
-      return decorateClient(base, spec);
+      },
+
+      optimisticArrayRemove<
+        S extends Selectors<AnyDef>,
+        D extends AdjustTargetOutput<
+          inferDef<S>,
+          inferDef<S>["target"]["output"][0]
+        >
+      >(
+        s: S,
+        { queryParameters, ...config }: TRPCConfigs<D>["optimisticArrayRemove"]
+      ) {
+        this.untyped.optimisticArrayRemove({
+          ...untypedSelectors({ ...s, queryParameters }),
+          ...config,
+        });
+      },
+
+      optimisticData<S extends Selectors<AnyDef>, D extends inferDef<S>>(
+        s: S,
+        { queryParameters, ...config }: TRPCConfigs<D>["optimisticData"]
+      ) {
+        this.untyped.optimisticData({
+          ...untypedSelectors({ ...s, queryParameters }),
+          ...config,
+        });
+      },
+    },
+  };
 }
 
-createOptimisticClient(builder => {
-    builder.optimisticData({
-        from: trpc.threads.create,
-        to: trpc.threads.all,
-        queryParameters: () => undefined,
-        inject(valuesFromServer, mutation) {
-            if (mutation.isSuccess && valuesFromServer.find(x => x.id === mutation.data.id)) {
-                return stopInjection;
-            } else {
-                return [...valuesFromServer, {...mutation.variables, id: -1}];
-            }
-        },
-    })
-})
+optimisticTRPCClient((builder) => {});
 
 // return [
 //     ...trpc.threads.all.optimisticCache(
@@ -100,3 +141,31 @@ createOptimisticClient(builder => {
 //         }),
 //       ]
 //     ),
+
+function untypedSelectors<D extends AnyDef>(
+  selectors: Selectors<D> & {
+    queryParameters: (
+      mutationParameters: D["source"]["input"]
+    ) => D["target"]["input"];
+  }
+): UntypedSelectors<D> {
+  return {
+    from: {
+      mutationKey: selectors.from.mutationKey(),
+    },
+    to: {
+      static: {
+        queryKey: (
+          selectors.from as unknown as { pathKey: () => QueryKey }
+        ).pathKey(),
+      },
+      dynamic(mutationState: ActiveMutationState<D>) {
+        return {
+          queryKey: selectors.to.queryKey(
+            selectors.queryParameters(mutationState.variables)
+          ),
+        };
+      },
+    },
+  };
+}
