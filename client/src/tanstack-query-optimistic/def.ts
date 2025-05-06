@@ -1,4 +1,5 @@
 import {
+  MutationObserver,
   MutationObserverIdleResult,
   MutationObserverOptions,
   MutationObserverResult,
@@ -33,14 +34,18 @@ export type SpecificDef<
   };
 };
 
-
 type Adjust<
   D extends AnyDef,
   K1 extends keyof D,
   K2 extends keyof D[K1],
   Replace
 > = Omit<D, K1> & Record<K1, Omit<D[K1], K2> & Record<K2, Replace>>;
-export type AdjustTargetOutput<D extends AnyDef, Replace> = Adjust<D, 'target', 'output', Replace>;
+export type AdjustTargetOutput<D extends AnyDef, Replace> = Adjust<
+  D,
+  "target",
+  "output",
+  Replace
+>;
 
 export type _Query<D extends AnyDef> = Query<
   D["target"]["outputPreTransform"],
@@ -71,3 +76,10 @@ export type _MutationObserverIdleResult<D extends AnyDef> =
     D["source"]["input"],
     D["source"]["context"]
   >;
+
+export type _MutationObserver<D extends AnyDef> = MutationObserver<
+  D["source"]["output"],
+  D["source"]["error"],
+  D["source"]["input"],
+  D["source"]["context"]
+>;

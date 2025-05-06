@@ -51,12 +51,6 @@ const appRouter = router({
         fakeData.set(id, { ...input, posts: new Map() });
         return { id };
       }),
-    byId: publicProcedure
-      .input(z.object({ id: z.number() }))
-      .query(({ input }) => {
-        const { posts, ...rest } = fakeData.get(input.id)!;
-        return rest;
-      }),
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(({ input }) => {
@@ -81,20 +75,12 @@ const appRouter = router({
         fakeData.get(threadId)!.posts.set(id, { ...rest });
         return { id };
       }),
-    byId: publicProcedure
-      .input(z.object({ id: z.number() }))
-      .query(({ input }) => {
-        for (const thread of Object.values(fakeData)) {
-          const post = thread.posts[input.id];
-          if (post) return post;
-        }
-        throw new Error();
-      }),
     delete: publicProcedure
-      .input(z.object({ id: z.number(), threadId: z.number() }))
+      .input(z.object({ id: z.number()}))
       .mutation(({ input }) => {
-        if (!fakeData.get(input.threadId)!.posts.delete(input.id))
-          throw new Error();
+        for (const thread of fakeData.values()) {
+          thread.posts.delete(input.id);
+        }
         return "success";
       }),
   }),

@@ -67,7 +67,7 @@ export type UntypedConfigs<D extends AnyDef> = {
   optimisticArrayRemove: Selectors<D> & {
     matchValue(
       input: D["source"]["input"],
-      fromServer: D["target"]["output"],
+      fromServer: D["target"]["output"]
     ): boolean;
   };
 };
@@ -108,46 +108,74 @@ export function _buildUntypedOptimisticSpec(baseClient: QueryClient) {
           filter: config.from,
           watch: () => {
             const index = autoInc++;
+            const name = `#${index} ${
+              config.from.mutationKey
+                ? hashKey(config.from.mutationKey)
+                : JSON.stringify(config.from)
+            }`;
             let abort = false;
             let lastStatus: MutationObserverResult["status"] = "pending";
-            return {
-              onEvent(event) {
-                let needsClientSideRefresh = false;
+            return (event) => {
+              console.log(
+                `Mutation ${name}(${event.variables}) status  ${event.status}`,
+                event
+              );
+              let needsClientSideRefresh = false;
 
-                if (lastStatus !== event.status) {
-                  lastStatus = event.status;
-                  if (event.status === "success") {
-                    baseClient.invalidateQueries(
-                      dynamicTargetQueryFilter(event)
-                    );
-                  } else {
-                    needsClientSideRefresh ||= true;
-                  }
+              if (lastStatus !== event.status) {
+                console.log(
+                  `Mutation ${name}(${event.variables}) status change (${lastStatus} => ${event.status})`
+                );
+                lastStatus = event.status;
+                if (event.status === "success") {
+                  console.log(
+                    `Mutation ${name}(${event.variables}) causing invalidate of: `,
+                    dynamicTargetQueryFilter(event)
+                  );
+                  baseClient.invalidateQueries(dynamicTargetQueryFilter(event));
+                } else {
+                  needsClientSideRefresh ||= true;
                 }
+              }
 
-                if (event.variables && event.status !== "idle") {
-                  needsClientSideRefresh ||= !allMutationState.has(index);
-                  allMutationState.set(index, event);
+              if (event.variables && event.status !== "idle") {
+                needsClientSideRefresh ||= !allMutationState.has(index);
+                allMutationState.set(index, event);
 
-                  if (needsClientSideRefresh) {
-                    const targetFilter = dynamicTargetQueryFilter(event);
-                    for (const query of baseClient
-                      .getQueryCache()
-                      .findAll(targetFilter) as Array<_Query<D>>) {
-                      const queryState = getOrCreateQueryState(query);
+                if (needsClientSideRefresh) {
+                  const targetFilter = dynamicTargetQueryFilter(event);
+                  console.log(
+                    `Mutation ${name}(${event.variables}) causing refresh of: `,
+                    targetFilter
+                  );
+                  for (const query of baseClient
+                    .getQueryCache()
+                    .findAll(targetFilter) as Array<_Query<D>>) {
+                    const queryState = getOrCreateQueryState(query);
 
-                      baseClient.setQueryData<D["target"]["output"]>(
-                        query.queryKey,
-                        (data) => {
-                          const source = (queryState.latestResultFromServer ??=
-                            data ?? config.emptyDefaultIfNoInitialQuery);
-                          if (source) return evaluateQuery(query, source).value;
+                    baseClient.setQueryData<D["target"]["output"]>(
+                      query.queryKey,
+                      (data) => {
+                        const source = (queryState.latestResultFromServer ??=
+                          data ?? config.emptyDefaultIfNoInitialQuery);
+                        if (source) {
+                          const { value } = evaluateQuery(query, source);
+                          console.log(
+                            `Mutation ${name}(${
+                              event.variables
+                            }) changing data of ${
+                              query.queryHash
+                            } from ${JSON.stringify(data)} to ${JSON.stringify(
+                              value
+                            )}`
+                          );
+                          return value;
                         }
-                      );
-                    }
+                      }
+                    );
                   }
                 }
-              },
+              }
             };
           },
         } satisfies WatchMutationSpec<D>);
@@ -185,6 +213,19 @@ export function _buildUntypedOptimisticSpec(baseClient: QueryClient) {
               }
             }
           }
+          for (const index of toRemove) {
+            allMutationState.delete(index);
+            console.log(`Removing injection #${index}`);
+          }
+
+          if (isAltered)
+            console.log(
+              `Query ${query.queryHash} results changed from`,
+              source,
+              "to",
+              value,
+              allMutationState.keys(),
+            );
 
           return { isAltered, value };
         }
@@ -221,19 +262,25 @@ export function _buildUntypedOptimisticSpec(baseClient: QueryClient) {
         ...config
       }: UntypedConfigs<D>["optimisticArrayRemove"]) {
         this.optimisticData<
-        AdjustTargetOutput<D, Array<D["target"]["output"]>>
-      >({
-        ...config,
-        emptyDefaultIfNoInitialQuery: [],
-        inject(valuesFromServer: Array<D["target"]["output"]>, mutation) {
-          if (mutation.isSuccess && !valuesFromServer.find(x => matchValue(mutation.variables, x))) {
-            return stopInjection;
-          } else {
-            return valuesFromServer.filter(x => !matchValue(mutation.variables, x));
-          }
-        },
-      });
-      }
+          AdjustTargetOutput<D, Array<D["target"]["output"]>>
+        >({
+          ...config,
+          emptyDefaultIfNoInitialQuery: [],
+          inject(valuesFromServer: Array<D["target"]["output"]>, mutation) {
+            console.log({valuesFromServer, mutation});
+            if (
+              mutation.isSuccess &&
+              !valuesFromServer.find((x) => matchValue(mutation.variables, x))
+            ) {
+              return stopInjection;
+            } else {
+              return valuesFromServer.filter(
+                (x) => !matchValue(mutation.variables, x)
+              );
+            }
+          },
+        });
+      },
     },
   };
 }

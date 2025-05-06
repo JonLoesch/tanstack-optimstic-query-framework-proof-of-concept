@@ -18,7 +18,8 @@ export function App() {
 }
 
 function AllThreads() {
-  const threads = useQuery(trpc.threads.all.queryOptions());
+  const queryClient = useQueryClient();
+  const threads = useQuery(trpc.threads.all.queryOptions(), useQueryClient());
   return (
     <>
       <div>
@@ -98,7 +99,7 @@ function Post(props: {
         type="button"
         value="Delete this Post"
         onClick={() =>
-          deletePost.mutate({ id: props.post.id, threadId: props.threadId })
+          deletePost.mutate({ id: props.post.id })
         }
       />
     </div>

@@ -1,5 +1,4 @@
 import { MutationKey, QueryClient, QueryKey } from "@tanstack/react-query";
-import { trpc } from "../utils/trpc";
 import {
   ActiveMutationState,
   UntypedConfigs,
@@ -48,7 +47,7 @@ type TRPCConfigs<D extends AnyDef> = {
     UntypedConfigs<D>[K],
     keyof UntypedSelectors<D>
   > & {
-    queryParameters: (
+    queryParameters?: (
       mutationParameters: D["source"]["input"]
     ) => D["target"]["input"];
   };
@@ -107,65 +106,34 @@ export function _buildTRPCOptimisticClient(queryClient: QueryClient) {
   };
 }
 
-optimisticTRPCClient((builder) => {});
-
-// return [
-//     ...trpc.threads.all.optimisticCache(
-//       [],
-//       [
-//         trpcLink.threads.create.optimisticDataSource({
-//           queryParameters: () => undefined,
-//           injectNewData(fromServer, newData, mutationComplete) {
-//             if (
-//               mutationComplete &&
-//               fromServer.find((x) => x.id === mutationComplete.id)
-//             ) {
-//               return trpcLink.stopInjection();
-//             } else {
-//               return [...fromServer, { ...newData, id: -1 }];
-//             }
-//           },
-//         }),
-//         trpcLink.threads.delete.optimisticDataSource({
-//           queryParameters: () => undefined,
-//           injectNewData(fromServer, toRemove, mutationComplete) {
-//             if (
-//               mutationComplete &&
-//               !fromServer.find((x) => x.id === toRemove.id)
-//             ) {
-//               return trpcLink.stopInjection();
-//             } else {
-//               return fromServer.filter((x) => x.id !== toRemove.id);
-//             }
-//           },
-//         }),
-//       ]
-//     ),
-
 function untypedSelectors<D extends AnyDef>(
   selectors: Selectors<D> & {
-    queryParameters: (
+    queryParameters?: (
       mutationParameters: D["source"]["input"]
     ) => D["target"]["input"];
   }
 ): UntypedSelectors<D> {
+  const queryKey = (
+    selectors.to as unknown as { pathKey: () => QueryKey }
+  ).pathKey();
+  let to: UntypedSelectors<D>["to"] = { queryKey };
+  if (selectors.queryParameters) {
+    const qp = selectors.queryParameters;
+    to = {
+      static: {
+        queryKey,
+      },
+      dynamic(mutationState: ActiveMutationState<D>) {
+        return {
+          queryKey: selectors.to.queryKey(qp(mutationState.variables)),
+        };
+      },
+    };
+  }
   return {
     from: {
       mutationKey: selectors.from.mutationKey(),
     },
-    to: {
-      static: {
-        queryKey: (
-          selectors.from as unknown as { pathKey: () => QueryKey }
-        ).pathKey(),
-      },
-      dynamic(mutationState: ActiveMutationState<D>) {
-        return {
-          queryKey: selectors.to.queryKey(
-            selectors.queryParameters(mutationState.variables)
-          ),
-        };
-      },
-    },
+    to,
   };
 }

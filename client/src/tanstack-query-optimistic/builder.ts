@@ -15,7 +15,6 @@ import {
 useMutation;
 import {
   decorateClient,
-  options,
   Spec,
   TransformQuerySpec,
   WatchMutationSpec,
