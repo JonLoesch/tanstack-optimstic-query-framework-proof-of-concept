@@ -98,7 +98,7 @@ function Post(props: {
         type="button"
         value="Delete this Post"
         onClick={() =>
-          deletePost.mutate({ id: props.post.id, threadId: props.threadId })
+          deletePost.mutate({ id: props.post.id })
         }
       />
     </div>
