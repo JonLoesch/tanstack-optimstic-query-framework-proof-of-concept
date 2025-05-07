@@ -5,7 +5,7 @@ So, first up:  This idea is half baked and has many problems in the implementati
 
 That said I *believe* most of the problems here are due to "I haven't done that yet", not due to any sort of structural impossibility.  If this is something that you think would be helpful for your project, let me know and I can start trying to build it out fully.  That's the whole point of this demo, to gauge community interest.
 
-There's a StackBlitz demo.  But also this is the first time I've ever used StackBlitz so it may not be exactly set up correctly.  Please let me know if there are any problems: [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/JonLoesch/trpc-link-demo?file=client%2Fsrc%2Foptimistic-updates.ts)
+There's a StackBlitz demo.  But also this is the first time I've ever used StackBlitz so it may not be exactly set up correctly.  Please let me know if there are any problems: [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/JonLoesch/tanstack-optimstic-query-framework-proof-of-concept?file=client%2Fsrc%2Foptimistic-updates.ts)
 
 ### My Questions
 There are a couple questions I am trying to answer:
