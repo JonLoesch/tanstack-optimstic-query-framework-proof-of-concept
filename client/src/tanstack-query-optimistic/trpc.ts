@@ -2,12 +2,14 @@ import { MutationKey, QueryClient, QueryKey } from "@tanstack/react-query";
 import {
   ActiveMutationState,
   UntypedConfigs,
-  _buildUntypedOptimisticSpec,
-  stopInjection,
+  _attachOptimisticFunctionality,
   type Selectors as UntypedSelectors,
 } from "./untyped";
-import { runSpecBuilder } from "./builder";
 import { AdjustTargetOutput, AnyDef } from "./def";
+import { InjectableQueryClient } from "./decorate";
+import { AnyTRPCRouter } from "@trpc/server";
+import { createTRPCOptionsProxy, TRPCOptionsProxy } from "@trpc/tanstack-react-query";
+import { createTRPCClient } from "@trpc/client";
 
 type Selectors<D extends AnyDef> = {
   from: {
@@ -53,55 +55,68 @@ type TRPCConfigs<D extends AnyDef> = {
   };
 };
 
-export const optimisticTRPCClient = runSpecBuilder(_buildTRPCOptimisticClient);
-export function _buildTRPCOptimisticClient(queryClient: QueryClient) {
-  const untyped = _buildUntypedOptimisticSpec(queryClient);
+export function createOptimisticTRPCClient<TRouter extends AnyTRPCRouter>(
+  setupInjections: (
+    builder: ReturnType<typeof _attachTRPCOptimisticFunctionality>,
+    router: TRPCOptionsProxy<TRouter>
+  ) => void,
+  client?: InjectableQueryClient
+): InjectableQueryClient {
+  client ??= new InjectableQueryClient();
+  const fakeTRPCProxy = createTRPCOptionsProxy<TRouter>({
+    client: createTRPCClient<TRouter>({
+      links: [],
+    }),
+    queryClient: new QueryClient(),
+  });
+  setupInjections(_attachTRPCOptimisticFunctionality(client), fakeTRPCProxy);
+  return client;
+}
+export function _attachTRPCOptimisticFunctionality(queryClient: InjectableQueryClient) {
+  const untyped = _attachOptimisticFunctionality(queryClient);
   return {
-    spec: untyped.spec,
-    builder: {
-      untyped: untyped.builder,
+    untyped,
 
-      optimisticArrayInsert<
-        S extends Selectors<AnyDef>,
-        D extends AdjustTargetOutput<
-          inferDef<S>,
-          inferDef<S>["target"]["output"][0]
-        >
-      >(
-        s: S,
-        { queryParameters, ...config }: TRPCConfigs<D>["optimisticArrayInsert"]
-      ) {
-        this.untyped.optimisticArrayInsert({
-          ...untypedSelectors({ ...s, queryParameters }),
-          ...config,
-        });
-      },
+    optimisticArrayInsert<
+      S extends Selectors<AnyDef>,
+      D extends AdjustTargetOutput<
+        inferDef<S>,
+        inferDef<S>["target"]["output"][0]
+      >
+    >(
+      s: S,
+      { queryParameters, ...config }: TRPCConfigs<D>["optimisticArrayInsert"]
+    ) {
+      this.untyped.optimisticArrayInsert({
+        ...untypedSelectors({ ...s, queryParameters }),
+        ...config,
+      });
+    },
 
-      optimisticArrayRemove<
-        S extends Selectors<AnyDef>,
-        D extends AdjustTargetOutput<
-          inferDef<S>,
-          inferDef<S>["target"]["output"][0]
-        >
-      >(
-        s: S,
-        { queryParameters, ...config }: TRPCConfigs<D>["optimisticArrayRemove"]
-      ) {
-        this.untyped.optimisticArrayRemove({
-          ...untypedSelectors({ ...s, queryParameters }),
-          ...config,
-        });
-      },
+    optimisticArrayRemove<
+      S extends Selectors<AnyDef>,
+      D extends AdjustTargetOutput<
+        inferDef<S>,
+        inferDef<S>["target"]["output"][0]
+      >
+    >(
+      s: S,
+      { queryParameters, ...config }: TRPCConfigs<D>["optimisticArrayRemove"]
+    ) {
+      this.untyped.optimisticArrayRemove({
+        ...untypedSelectors({ ...s, queryParameters }),
+        ...config,
+      });
+    },
 
-      optimisticData<S extends Selectors<AnyDef>, D extends inferDef<S>>(
-        s: S,
-        { queryParameters, ...config }: TRPCConfigs<D>["optimisticData"]
-      ) {
-        this.untyped.optimisticData({
-          ...untypedSelectors({ ...s, queryParameters }),
-          ...config,
-        });
-      },
+    optimisticData<S extends Selectors<AnyDef>, D extends inferDef<S>>(
+      s: S,
+      { queryParameters, ...config }: TRPCConfigs<D>["optimisticData"]
+    ) {
+      this.untyped.optimisticData({
+        ...untypedSelectors({ ...s, queryParameters }),
+        ...config,
+      });
     },
   };
 }
@@ -113,27 +128,19 @@ function untypedSelectors<D extends AnyDef>(
     ) => D["target"]["input"];
   }
 ): UntypedSelectors<D> {
-  const queryKey = (
+  const staticQueryKey = (
     selectors.to as unknown as { pathKey: () => QueryKey }
   ).pathKey();
-  let to: UntypedSelectors<D>["to"] = { queryKey };
-  if (selectors.queryParameters) {
-    const qp = selectors.queryParameters;
-    to = {
-      static: {
-        queryKey,
-      },
-      dynamic(mutationState: ActiveMutationState<D>) {
-        return {
-          queryKey: selectors.to.queryKey(qp(mutationState.variables)),
-        };
-      },
-    };
-  }
   return {
     from: {
       mutationKey: selectors.from.mutationKey(),
     },
-    to,
+    to: (input) => {
+        return ({
+            queryKey: selectors.queryParameters
+                ? selectors.to.queryKey(selectors.queryParameters(input))
+                : staticQueryKey,
+        });
+    },
   };
 }

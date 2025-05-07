@@ -1,11 +1,13 @@
-import { QueryClient } from "@tanstack/react-query";
 import { createTRPCClient, httpBatchLink, loggerLink } from "@trpc/client";
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import type { AppRouter } from "../../../server";
 import { optimisticUpdatesViaTanstackDecoration } from "../optimistic-updates";
+import {
+  InjectableQueryClient,
+} from "../tanstack-query-optimistic/decorate";
 
 export const queryClient = optimisticUpdatesViaTanstackDecoration(
-  new QueryClient({
+  new InjectableQueryClient({
     defaultOptions: {
       queries: {
         // ...

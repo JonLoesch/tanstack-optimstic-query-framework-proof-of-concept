@@ -18,8 +18,7 @@ export function App() {
 }
 
 function AllThreads() {
-  const queryClient = useQueryClient();
-  const threads = useQuery(trpc.threads.all.queryOptions(), useQueryClient());
+  const threads = useQuery(trpc.threads.all.queryOptions());
   return (
     <>
       <div>
